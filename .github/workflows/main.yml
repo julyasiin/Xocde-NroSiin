@@ -1,0 +1,50 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Reassemble library files
+        run: |
+          cat Libraries/libiPhone-lib.a.part_* > Libraries/libiPhone-lib.a
+          cat Libraries/libil2cpp.a.part_* > Libraries/libil2cpp.a
+          rm -f Libraries/*.part_*
+
+      - name: Build & Archive
+        run: |
+          xcodebuild clean archive \
+            -project Unity-iPhone.xcodeproj \
+            -scheme Unity-iPhone \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath build/Unity-iPhone.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          APP_PATH=$(find build/Unity-iPhone.xcarchive/Products/Applications -name "*.app" -maxdepth 1)
+          cp -r "$APP_PATH" Payload/
+          zip -r NroSiin.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NroSiin-iOS-IPA
+          path: NroSiin.ipa
